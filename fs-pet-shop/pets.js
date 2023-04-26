@@ -1,6 +1,5 @@
 import process from "node:process";
 import fs from "fs";
-import { type } from "node:os";
 
 const subcommand = process.argv[2];
 const index = process.argv[3];

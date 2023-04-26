@@ -1,8 +1,6 @@
 import http from "http";
-import fs from "node:fs";
 
 import routes from "./routes.js";
-import { readFileSync } from "fs";
 
 let server = http.createServer(function (req, res) {
 	if (routes[req.url] !== undefined) {
