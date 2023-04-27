@@ -1,4 +1,5 @@
 [
 	{ "age": 7, "kind": "rainbow", "name": "fido" },
-	{ "age": 9, "kind": "cat", "name": "Rosey" }
+	{ "age": 9, "kind": "cat", "name": "Rosey" },
+	{ "age": 3, "kind": "dog", "name": "Buster" }
 ]
