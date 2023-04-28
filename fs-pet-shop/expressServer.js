@@ -1,66 +1,64 @@
 import express from "express";
 import fs from "fs";
+
+// create server
 const app = express();
+const port = 3000;
+let dataLen;
+let i;
 
-let petRegExp = /^\/pets\/(.*)$/;
-let hasPetInPath;
-let matchPets;
-let index;
-let dataLength;
-
+// set variables
 app.use((req, res, next) => {
-	hasPetInPath = petRegExp.test(req.url);
-	matchPets = req.url.match(petRegExp);
-	index = req.url.match(petRegExp)?.[1];
-
-	fs.readFile("pets.json", "utf-8", function (err, petsJSON) {
-		dataLength = JSON.parse(petsJSON).length;
-	});
+	let file = fs.readFileSync("pets.json", "utf-8");
+	dataLen = JSON.parse(file).length;
 
 	next();
 });
 
-// All pets
+app.use(express.json()); // for parsing application/json
+app.use(express.urlencoded({ extended: true }));
+
+//create routes
 app.get("/pets", (req, res) => {
-	console.log("Accessing /pets");
 	fs.readFile("pets.json", "utf-8", function (err, petsJSON) {
-		res.setHeader("Content-Type", "application/json");
-		res.statusCode = 200;
-		res.end(petsJSON);
+		res.set("Content-Type", "application/json");
+		res.send(petsJSON);
 	});
 });
 
-// Dynamic pet index
-app.use((req, res, next) => {
-	// If there is a valid index, return pet data
-	// console.log(hasPetInPath);
-	// console.log(matchPets);
-	// not valid
-	if (index === undefined || isNaN(index) || index >= dataLength || index < 0) {
-		res.setHeader("Content-Type", "text/plain");
-		res.statusCode = 404;
-		res.end("Sorry...Not Found");
+// dynamic pet route
+app.get("/pets/:petIndex", (req, res) => {
+	i = Number(req.params.petIndex);
+	if (i === undefined || isNaN(i) || i >= dataLen || i < 0) {
+		res.sendStatus(404);
 		return;
+	} else {
+		fs.readFile("pets.json", "utf-8", function (err, petsJSON) {
+			const str = JSON.parse(petsJSON);
+			res.set("Content-Type", "application/json");
+			res.send(str[i]);
+		});
 	}
-	next();
 });
 
-app.get("/pets/*", (req, res) => {
-	fs.readFile("pets.json", "utf-8", function (err, petsJSON) {
-		res.setHeader("Content-Type", "application/json");
-		res.statusCode = 200;
-		let petsObj = JSON.parse(petsJSON);
-		let petJSON = JSON.stringify(petsObj[index]);
-		res.end(petJSON);
-	});
+app.post("/pets", (req, res) => {
+	const body = req.body;
+
+	// update pets.json
+	if (body.name && body.kind && Number.isInteger(body.age)) {
+		let petsObj = fs.readFileSync("pets.json", "utf-8");
+		petsObj = JSON.parse(petsObj);
+		petsObj.push(body);
+		fs.writeFile("pets.json", JSON.stringify(petsObj), (err) => {
+			if (err) throw err;
+			res.send(body);
+		});
+	} else {
+		res.sendStatus(400);
+	}
 });
 
-// Default route
-app.get("*", (req, res) => {
-	res.setHeader("Content-Type", "text/plain");
-	res.statusCode = 404;
-	res.end("Not Found!");
-});
+app.use((err, req, res, next) => {});
 
-// listen on port
-app.listen(8800, () => console.log("Server listening on port 8800"));
+// start running
+app.listen(port, () => console.log(`Listening on port ${port}`));
