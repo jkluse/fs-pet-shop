@@ -4,19 +4,19 @@ import fs from "fs";
 // create server
 const app = express();
 const port = 3000;
-let dataLen;
-let i;
 
-// set variables
+// middleware handling of unknown requests
 app.use((req, res, next) => {
-	let file = fs.readFileSync("pets.json", "utf-8");
-	dataLen = JSON.parse(file).length;
-
-	next();
+	console.log(req.url);
+	if (req.url === "/" || req.ulr === "/blah") {
+		res.sendStatus(404);
+		return;
+	} else {
+		next();
+	}
 });
 
 app.use(express.json()); // for parsing application/json
-app.use(express.urlencoded({ extended: true }));
 
 //create routes
 app.get("/pets", (req, res) => {
@@ -28,17 +28,19 @@ app.get("/pets", (req, res) => {
 
 // dynamic pet route
 app.get("/pets/:petIndex", (req, res) => {
-	i = Number(req.params.petIndex);
-	if (i === undefined || isNaN(i) || i >= dataLen || i < 0) {
-		res.sendStatus(404);
-		return;
-	} else {
-		fs.readFile("pets.json", "utf-8", function (err, petsJSON) {
+	console.log(i);
+
+	fs.readFile("pets.json", "utf-8", function (err, petsJSON) {
+		let i = Number(req.params.petIndex);
+		if (i === undefined) {
+			res.sendStatus(404);
+			return;
+		} else {
 			const str = JSON.parse(petsJSON);
 			res.set("Content-Type", "application/json");
 			res.send(str[i]);
-		});
-	}
+		}
+	});
 });
 
 app.post("/pets", (req, res) => {
