@@ -36,6 +36,13 @@ server.post("/pets", (req, res) => {
 	}
 });
 
+server.get("/pets", (req, res) => {
+	fs.readFile("pets.json", "utf-8").then((petsJSON) => {
+		petsJSON = JSON.parse(petsJSON);
+		res.json(petsJSON);
+	});
+});
+
 server.get("/pets/:petIndex", (req, res) => {
 	let i = Number(req.params.petIndex);
 	fs.readFile("pets.json", "utf-8")
@@ -59,17 +66,19 @@ server.get("/pets/:petIndex", (req, res) => {
 });
 
 server.patch("/pets/:petIndex", (req, res) => {
+	// get data to update
 	const { age, name, kind } = req.body;
+	const petToUpdate = { age, name, kind };
 	const key = Object.keys(req.body)[0];
 	const val = req.body[key];
 
-	console.log(typeof key, key);
-	// guard clauses
-	if (key === "age" && !Number.isInteger(+age)) {
-		res.status(400).send();
+	// guard clauses age is INT and name/kind
+	if (!age && !name && !kind) {
+		res.sendStatus(400);
 		return;
-	} else if (typeof req.body[key] !== "string") {
-		res.status(400).send();
+	}
+	if ((age !== undefined && typeof age !== "number") || age < 0) {
+		res.sendStatus(400);
 		return;
 	}
 
@@ -77,17 +86,25 @@ server.patch("/pets/:petIndex", (req, res) => {
 	fs.readFile("pets.json", "utf-8")
 		.then((petsJSON) => {
 			const arr = JSON.parse(petsJSON);
-			console.log(arr);
-			// find index in pets.json
+
+			// index must be in range
 			let i = Number(req.params.petIndex);
 			if (arr[i] === undefined) {
 				res.sendStatus(400);
 				return;
 			}
+			// create updated obj
+			let updatedPet = {};
+			for (let prop in petToUpdate) {
+				if (petToUpdate[prop]) {
+					updatedPet[prop] = petToUpdate[prop];
+				}
+			}
+			// find index in pets.json
 			// update index
-			arr[i][key] = val;
+			arr[i] = { ...arr[i], ...updatedPet };
 			return fs.writeFile("pets.json", JSON.stringify(arr)).then(() => {
-				res.status(201).json(arr[i]);
+				res.status(200).json(arr[i]);
 			});
 		})
 		.catch((err) => {
@@ -100,7 +117,6 @@ server.delete("/pets/:petIndex", (req, res) => {
 	fs.readFile("pets.json", "utf-8")
 		.then((petsJSON) => {
 			const arr = JSON.parse(petsJSON);
-			console.log(arr);
 			// find index in pets.json
 			let i = Number(req.params.petIndex);
 			let pet = arr[i];
