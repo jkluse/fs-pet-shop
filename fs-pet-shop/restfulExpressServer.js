@@ -1,138 +1,87 @@
 import express from "express";
 import fs from "fs/promises";
-
+import pg from "pg";
 const server = express();
 const port = 3000;
 
-const postErr =
-	'| Request Method | Request URL | Request Body | Response Status | Response Content-Type | Response Body | | -------------- | ----------- | ------------------------------------------ | --------------- | --------------------- | ------------- | --- | | POST | /pets | { "name": "", "age": "two", "kind": "" } | 400 | text/plain | Bad Request | |';
+const db = new pg.Pool({
+	database: "petshop",
+});
 
 // JSON parser for POST reqs
 server.use(express.json());
 
 server.post("/pets", (req, res) => {
-	// Get post info from req body
-	// Create new pet
 	const { age, name, kind } = req.body;
 
 	if (name && kind && Number.isInteger(age)) {
-		const pet = { age, name, kind };
-
-		// Add it to pets.json
-		fs.readFile("pets.json", "utf-8").then((data) => {
-			const pets = JSON.parse(data);
-			pets.push(pet);
-			return fs
-				.writeFile("pets.json", JSON.stringify(pets))
-				.then(() => {
-					res.status(201).send(pet);
-				})
-				.catch((err) => {
-					throw err;
-				});
+		db.query("INSERT INTO pet(name, kind, age) VALUES ($1, $2, $3) RETURNING *", [name, kind, age], (err, result) => {
+			if (err) throw err;
+			res.status(201).json(result.rows[0]);
 		});
 	} else {
-		res.status(400).send(postErr);
+		res.status(400).send();
 	}
 });
 
 server.get("/pets", (req, res) => {
-	fs.readFile("pets.json", "utf-8").then((petsJSON) => {
-		petsJSON = JSON.parse(petsJSON);
-		res.json(petsJSON);
+	db.query("SELECT * FROM pet", [], (err, result) => {
+		if (err) throw err;
+		res.json(result.rows);
 	});
 });
 
 server.get("/pets/:petIndex", (req, res) => {
 	let i = Number(req.params.petIndex);
-	fs.readFile("pets.json", "utf-8")
-		.then((petsJSON) => {
-			if (i === undefined) {
-				res.sendStatus(404);
-				return;
-			} else {
-				const str = JSON.parse(petsJSON);
-				if (str[i] === undefined) {
-					res.sendStatus(404);
-					return;
-				}
-				res.set("Content-Type", "application/json");
-				res.send(str[i]);
-			}
-		})
-		.catch((err) => {
-			throw err;
-		});
+	if (!Number.isInteger(i)) {
+		res.status(422).send();
+	}
+
+	db.query("SELECT * FROM pet WHERE id = $1", [i], (err, result) => {
+		console.log(result.rows.length);
+		if (err) throw err;
+		if (result.rows.length === 0) {
+			res.status(404).send();
+		} else {
+			console.log("has rows");
+			res.json(result.rows[0]);
+		}
+	});
 });
 
 server.patch("/pets/:petIndex", (req, res) => {
-	// get data to update
 	const { age, name, kind } = req.body;
-	const petToUpdate = { age, name, kind };
-	const key = Object.keys(req.body)[0];
-	const val = req.body[key];
+	let i = Number(req.params.petIndex);
 
-	// guard clauses age is INT and name/kind
-	if (!age && !name && !kind) {
-		res.sendStatus(400);
-		return;
-	}
+	// guard clauses age is INT
 	if ((age !== undefined && typeof age !== "number") || age < 0) {
 		res.sendStatus(400);
 		return;
 	}
 
-	// happy path
-	fs.readFile("pets.json", "utf-8")
-		.then((petsJSON) => {
-			const arr = JSON.parse(petsJSON);
-
-			// index must be in range
-			let i = Number(req.params.petIndex);
-			if (arr[i] === undefined) {
-				res.sendStatus(400);
-				return;
-			}
-			// create updated obj
-			let updatedPet = {};
-			for (let prop in petToUpdate) {
-				if (petToUpdate[prop]) {
-					updatedPet[prop] = petToUpdate[prop];
-				}
-			}
-			// find index in pets.json
-			// update index
-			arr[i] = { ...arr[i], ...updatedPet };
-			return fs.writeFile("pets.json", JSON.stringify(arr)).then(() => {
-				res.status(200).json(arr[i]);
-			});
-		})
-		.catch((err) => {
-			if (err) throw err;
-		});
+	db.query("UPDATE pet SET age = COALESCE($1, age), kind = COALESCE($2, kind), name = COALESCE($3, name) WHERE id = $4 RETURNING *", [age, kind, name, i], (err, result) => {
+		if (err) throw err;
+		if (result.rows.length === 0) {
+			res.sendStatus(404);
+		} else {
+			res.status(201).send(result.rows[0]);
+		}
+	});
+	return;
 });
 
 server.delete("/pets/:petIndex", (req, res) => {
-	// read file
-	fs.readFile("pets.json", "utf-8")
-		.then((petsJSON) => {
-			const arr = JSON.parse(petsJSON);
-			// find index in pets.json
-			let i = Number(req.params.petIndex);
-			let pet = arr[i];
-			if (arr[i] === undefined) {
-				res.sendStatus(400);
-				return;
-			}
-			// delete index
-			arr.splice(i, 1);
-			return fs.writeFile("pets.json", JSON.stringify(arr)).then(() => {
-				res.status(200).json(pet);
-			});
-		})
-		.catch((err) => {
-			if (err) throw err;
-		});
+	let i = Number(req.params.petIndex);
+
+	db.query("DELETE FROM pet WHERE id = $1 RETURNING *", [i], (err, result) => {
+		if (err) throw err;
+		if (result.rows.length === 0) {
+			res.sendStatus(404);
+		} else {
+			res.status(200).json(result.rows[0]);
+		}
+	});
+	return;
 });
 
 // default route
