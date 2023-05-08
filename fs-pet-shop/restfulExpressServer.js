@@ -8,6 +8,24 @@ const db = new pg.Pool({
 	database: "petshop",
 });
 
+// Basic auth
+server.use((req, res, next) => {
+	const auth = req.headers.authorization;
+	if (auth) {
+		const base64Creds = auth.split(" ")[1];
+		const creds = Buffer.from(base64Creds, "base64").toString("utf-8");
+		const [user, pass] = creds.split(":");
+		console.log(user, pass);
+		// add credentials
+		if (user === "" && pass === "") {
+			next();
+		} else {
+			console.log("nope");
+			res.sendStatus(401);
+		}
+	}
+});
+
 // JSON parser for POST reqs
 server.use(express.json());
 
